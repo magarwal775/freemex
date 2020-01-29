@@ -7,24 +7,26 @@ from django.utils import timezone
 from .models import Stock, Player, PlayerStock
 
 
-def fetch_quotes(symbols):
+def fetch_quotes(symbol):
     """Fetch stock prices from list of symbols"""
 
     quotes = {}
-    query_string = ','.join(symbols)
-    link = "https://cloud.iexapis.com/stable/stock/market/batch?symbols={}&types=quote&token={}".format(query_string, config('API_SECRET_TOKEN'))  # noqa
-    # print(link)
-
+    link = "https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={}&apikey={}".format(symbol, config('API_SECRET_TOKEN'))
+    # # print(link)
+    
     try:
         response = requests.get(link)
     except:
         return None
+
     if response.status_code != 200:
         return None
 
     data = response.json()
-    for stock in data:
-        quotes[stock] = data[stock]['quote']
+    quotes['price'] = data['Global Quote']['05. price']
+    quotes['diff'] = data['Global Quote']['09. change']
+    # quotes['price'] = 35
+    # quotes['diff'] = 24
 
     return quotes
 
@@ -32,11 +34,11 @@ def fetch_quotes(symbols):
 @transaction.atomic
 def update_all_stock_prices():
     all_stocks = Stock.objects.all()
-    symbol_list = [s.code for s in all_stocks]
-    quotes = fetch_quotes(symbol_list)
+    #symbol_list = [s.code for s in all_stocks]
     for stock in all_stocks:
-        stock.price = quotes[stock.code]['latestPrice']
-        stock.diff = quotes[stock.code]['change']
+        quotes = fetch_quotes(stock.code)
+        stock.price = quotes['price']
+        stock.diff = quotes['diff']
         stock.last_updated = timezone.now()
         stock.save()
 
